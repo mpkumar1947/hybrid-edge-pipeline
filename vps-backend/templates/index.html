@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Torrent Hybrid Dashboard</title>
+    <style>
+        body { font-family: monospace; background: #222; color: #0f0; margin: 20px; }
+        .container { max-width: 900px; }
+        .box { border: 1px solid #0f0; padding: 10px; margin: 10px 0; }
+        .header { font-weight: bold; color: #0f0; margin-bottom: 10px; }
+        .stat { display: flex; justify-content: space-between; margin: 5px 0; }
+        .bar { width: 100%; height: 20px; background: #111; border: 1px solid #0f0; position: relative; }
+        .fill { height: 100%; background: #0f0; }
+        .torrent-item { border-left: 3px solid #0f0; padding: 5px 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">⚡ TORRENT HYBRID SYSTEM</div>
+        <div>Updated: {{ timestamp }}</div>
+        
+        <div class="box">
+            <div class="header">💾 DISK STATUS</div>
+            <div class="stat">
+                <span>Free: {{ "%.2f"|format(disk.free_gb) }} GB / {{ "%.2f"|format(disk.total_gb) }} GB</span>
+                <span>{{ "%.1f"|format(disk.used_pct) }}% used</span>
+            </div>
+            <div class="bar">
+                <div class="fill" style="width: {{ disk.used_pct }}%"></div>
+            </div>
+        </div>
+        
+        <div class="box">
+            <div class="header">📥 ACTIVE TORRENTS ({{ torrents|length }})</div>
+            {% if torrents %}
+                {% for torrent in torrents %}
+                <div class="torrent-item">
+                    <strong>{{ torrent.name }}</strong><br>
+                    <small>Progress: {{ (torrent.progress * 100)|int }}% | Speed: {{ (torrent.dl_speed / 1024 / 1024)|int }}MB/s</small>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="stat">No active torrents</div>
+            {% endif %}
+        </div>
+        
+        <div class="box">
+            <div class="header">✓ COMPLETED ({{ completed_count }})</div>
+            <div class="stat">Files ready for transfer: {{ completed_count }}</div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Torrent Hub</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       var(--tg-theme-bg-color, #1a1a2e);
+    --bg2:      var(--tg-theme-secondary-bg-color, #16213e);
+    --text:     var(--tg-theme-text-color, #eaeaea);
+    --hint:     var(--tg-theme-hint-color, #8a8a9a);
+    --link:     var(--tg-theme-link-color, #6c8ebf);
+    --btn:      var(--tg-theme-button-color, #5568fe);
+    --btn-text: var(--tg-theme-button-text-color, #fff);
+    --danger:   #e05c5c;
+    --success:  #4caf7d;
+    --warn:     #e09b3d;
+    --radius:   12px;
+    --gap:      12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    padding: 12px 12px 80px;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .refresh-btn {
+    background: none; border: none; color: var(--hint);
+    font-size: 20px; cursor: pointer; padding: 4px;
+    transition: transform .3s;
+  }
+  .refresh-btn.spinning { animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── disk bar ── */
+  .disk-card {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: var(--gap);
+  }
+  .disk-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: var(--hint); }
+  .disk-label { font-weight: 500; color: var(--text); }
+  .bar-track { height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 3px; transition: width .5s ease; }
+  .bar-ok   { background: var(--success); }
+  .bar-warn { background: var(--warn); }
+  .bar-crit { background: var(--danger); }
+
+  /* ── section header ── */
+  .section-title {
+    font-size: 11px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--hint);
+    margin: 16px 0 8px 2px;
+  }
+
+  /* ── file card ── */
+  .file-card {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-left: 3px solid transparent;
+    transition: border-color .2s;
+  }
+  .file-card.ready       { border-color: var(--btn); }
+  .file-card.approved    { border-color: var(--warn); }
+  .file-card.transferring{ border-color: var(--link); }
+  .file-card.done        { border-color: var(--success); }
+  .file-card.skipped     { border-color: var(--hint); opacity: .6; }
+
+  .file-name {
+    font-size: 13px; font-weight: 500; margin-bottom: 4px;
+    word-break: break-word; line-height: 1.4;
+  }
+  .file-meta { font-size: 11px; color: var(--hint); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; padding: 2px 7px;
+    border-radius: 20px; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .badge-ready        { background: rgba(85,104,254,.2); color: #8899ff; }
+  .badge-approved     { background: rgba(224,155,61,.2);  color: var(--warn); }
+  .badge-transferring { background: rgba(108,142,191,.2); color: var(--link); }
+  .badge-done         { background: rgba(76,175,125,.2);  color: var(--success); }
+  .badge-skipped      { background: rgba(138,138,154,.15);color: var(--hint); }
+
+  /* progress */
+  .progress-wrap { margin-bottom: 8px; }
+  .progress-track { height: 4px; background: rgba(255,255,255,.08); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+  .progress-fill  { height: 100%; background: var(--link); border-radius: 2px; transition: width .4s ease; }
+  .progress-info  { font-size: 11px; color: var(--hint); display: flex; justify-content: space-between; }
+
+  /* buttons */
+  .btn-row { display: flex; gap: 8px; }
+  .btn {
+    flex: 1; padding: 9px 0; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); opacity: .85; }
+  .btn-approve { background: var(--btn);    color: var(--btn-text); }
+  .btn-skip    { background: rgba(255,255,255,.07); color: var(--hint); }
+  .btn-delete  { background: rgba(224,92,92,.15);   color: var(--danger); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  /* ── active torrents ── */
+  .torrent-card {
+    background: var(--bg2); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 8px;
+  }
+  .torrent-name { font-size: 12px; font-weight: 500; margin-bottom: 6px; word-break: break-word; }
+  .torrent-meta { font-size: 11px; color: var(--hint); display: flex; gap: 10px; }
+
+  /* ── empty state ── */
+  .empty { text-align: center; color: var(--hint); padding: 28px 0; font-size: 13px; }
+  .empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* ── toast ── */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--bg2); color: var(--text); border-radius: 8px;
+    padding: 10px 18px; font-size: 13px; font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    transition: transform .3s ease; z-index: 100; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── timestamp ── */
+  .timestamp { text-align: center; color: var(--hint); font-size: 10px; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ Torrent Hub</h1>
+  <button class="refresh-btn" id="refreshBtn" onclick="loadData()" title="Refresh">↻</button>
+</div>
+
+<div class="disk-card">
+  <div class="disk-row">
+    <span class="disk-label">VPS disk</span>
+    <span id="diskText">—</span>
+  </div>
+  <div class="bar-track"><div class="bar-fill" id="diskBar" style="width:0%"></div></div>
+</div>
+
+<div class="section-title">Ready to transfer</div>
+<div id="readyList"></div>
+
+<div class="section-title">Active transfers</div>
+<div id="transferList"></div>
+
+<div class="section-title">Downloading on VPS</div>
+<div id="torrentList"></div>
+
+<div class="section-title">Done / skipped</div>
+<div id="doneList"></div>
+
+<div class="timestamp" id="timestamp"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
+function getInitData() {
+  return tg?.initData || "";
+}
+
+function fmt(bytes_per_sec) {
+  if (!bytes_per_sec) return "0 B/s";
+  const mb = bytes_per_sec / 1024 / 1024;
+  return mb >= 1 ? mb.toFixed(1) + " MB/s" : (bytes_per_sec/1024).toFixed(0) + " KB/s";
+}
+
+function fmtEta(secs) {
+  if (!secs) return "";
+  if (secs < 60)   return secs + "s";
+  if (secs < 3600) return Math.floor(secs/60) + "m " + (secs%60) + "s";
+  return Math.floor(secs/3600) + "h " + Math.floor((secs%3600)/60) + "m";
+}
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function showToast(msg, ms=2500) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), ms);
+}
+
+async function apiCall(path, method="GET", body=null) {
+  const opts = {
+    method,
+    headers: { "X-Telegram-Init-Data": getInitData() }
+  };
+  if (body) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function approve(filename) {
+  try {
+    await apiCall("/api/approve/" + encodeURIComponent(filename), "POST");
+    showToast("✓ Approved — daemon will pick it up");
+    loadData();
+  } catch (e) { showToast("Error: " + e.message); }
+}
+
+async function skip(filename) {
+  try {
+    await apiCall("/api/skip/" + encodeURIComponent(filename), "POST");
+    showToast("Skipped");
+    loadData();
+  } catch (e) { showToast("Error: " + e.message); }
+}
+
+function deleteFile(filename) {
+  tg.showConfirm("Delete from VPS ready queue?", async function(ok) {
+    if (!ok) return;
+    try {
+      await apiCall("/api/delete/" + encodeURIComponent(filename), "POST");
+      showToast("Deleted from VPS");
+      loadData();
+    } catch (e) { showToast("Error: " + e.message); }
+  });
+}
+function badgeHtml(status) {
+  const labels = {
+    ready: "Ready", approved: "Approved", transferring: "Transferring",
+    done: "Done", skipped: "Skipped"
+  };
+  return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
+}
+
+function fileCard(f) {
+  const meta = [];
+  if (f.size_gb)    meta.push(f.size_gb.toFixed(2) + " GB");
+  if (f.added_at)   meta.push("added " + fmtDate(f.added_at));
+
+  let progressHtml = "";
+  if (f.status === "transferring" && f.progress_pct != null) {
+    const eta = fmtEta(f.eta_seconds);
+    progressHtml = `
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-fill" style="width:${f.progress_pct}%"></div></div>
+        <div class="progress-info">
+          <span>${f.progress_pct.toFixed(1)}%</span>
+          <span>${f.speed_mbps ? f.speed_mbps.toFixed(1) + " MB/s" : ""}</span>
+          <span>${eta ? "ETA " + eta : ""}</span>
+        </div>
+      </div>`;
+  }
+
+  let buttons = "";
+  if (f.status === "ready" || f.status === "skipped") {
+    buttons = `
+      <div class="btn-row">
+        <button class="btn btn-approve" onclick="approve('${f.name.replace(/'/g,"\\'")}')">↓ Approve transfer</button>
+        <button class="btn btn-skip"   onclick="skip('${f.name.replace(/'/g,"\\'")}')">Skip</button>
+      </div>`;
+  } else if (f.status === "done") {
+    const when = f.completed_at ? " · " + fmtDate(f.completed_at) : "";
+    meta.push("completed" + when);
+    buttons = `
+      <div class="btn-row">
+        <button class="btn btn-delete" onclick="deleteFile('${f.name.replace(/'/g,"\\'")}')">Remove from VPS</button>
+      </div>`;
+  }
+
+  return `
+    <div class="file-card ${f.status}">
+      <div class="file-name">${f.name}</div>
+      <div class="file-meta">
+        ${badgeHtml(f.status)}
+        ${meta.map(m => `<span>${m}</span>`).join("")}
+      </div>
+      ${progressHtml}
+      ${buttons}
+    </div>`;
+}
+
+async function loadData() {
+  const btn = document.getElementById("refreshBtn");
+  btn.classList.add("spinning");
+  try {
+    const data = await apiCall("/api/status");
+
+    // Disk
+    const d = data.disk;
+    document.getElementById("diskText").textContent =
+      `${d.free_gb} GB free / ${d.total_gb} GB`;
+    const fill = document.getElementById("diskBar");
+    fill.style.width = d.used_pct + "%";
+    fill.className = "bar-fill " + (d.used_pct > 90 ? "bar-crit" : d.used_pct > 70 ? "bar-warn" : "bar-ok");
+
+    // Partition files by status
+    const ready       = data.files.filter(f => f.status === "ready");
+    const approved    = data.files.filter(f => f.status === "approved");
+    const transferring= data.files.filter(f => f.status === "transferring");
+    const done        = data.files.filter(f => f.status === "done");
+    const skipped     = data.files.filter(f => f.status === "skipped");
+
+    const el = id => document.getElementById(id);
+
+    el("readyList").innerHTML = ready.length
+      ? ready.map(fileCard).join("")
+      : '<div class="empty"><div class="empty-icon">📭</div>No files waiting</div>';
+
+    el("transferList").innerHTML = [...approved, ...transferring].length
+      ? [...approved, ...transferring].map(fileCard).join("")
+      : '<div class="empty"><div class="empty-icon">🔄</div>No active transfers</div>';
+
+    el("doneList").innerHTML = [...done, ...skipped].length
+      ? [...done, ...skipped].map(fileCard).join("")
+      : '<div class="empty"><div class="empty-icon">✓</div>Nothing here yet</div>';
+
+    // Active torrents on VPS
+    const torrents = data.torrents || [];
+    el("torrentList").innerHTML = torrents.length
+      ? torrents.map(t => `
+          <div class="torrent-card">
+            <div class="torrent-name">${t.name}</div>
+            <div class="torrent-meta">
+              <span>${(t.progress*100).toFixed(1)}%</span>
+              <span>${fmt(t.dlspeed)}</span>
+              <span>${(t.size/1024**3).toFixed(2)} GB</span>
+              <span>${t.state}</span>
+            </div>
+            <div class="progress-track" style="margin-top:6px">
+              <div class="progress-fill" style="width:${t.progress*100}%"></div>
+            </div>
+          </div>`).join("")
+      : '<div class="empty"><div class="empty-icon">📡</div>No active downloads</div>';
+
+    el("timestamp").textContent = "Updated " + new Date().toLocaleTimeString();
+
+  } catch (e) {
+    showToast("Could not load: " + e.message, 4000);
+  } finally {
+    btn.classList.remove("spinning");
+  }
+}
+
+// Load on start, then auto-refresh every 8s (active transfers) or 30s (idle)
+loadData();
+let refreshInterval;
+function scheduleRefresh() {
+  clearInterval(refreshInterval);
+  refreshInterval = setInterval(loadData, 8000);
+}
+scheduleRefresh();
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) loadData();
+});
+</script>
+</body>
+</html>

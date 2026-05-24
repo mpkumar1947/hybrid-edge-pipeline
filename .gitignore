@@ -1,0 +1,23 @@
+# Ignore environment variables
+.env
+
+# Ignore Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Ignore ALL configuration and state files
+*.json
+*.log
+bot.pid
+
+# Ignore redundant/sensitive folders
+local/
+downloads/
+ready/
+completed/
+
+# Ignore OS files
+.DS_Store
