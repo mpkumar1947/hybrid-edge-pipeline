@@ -196,5 +196,3 @@ def api_progress():
 
 if __name__ == "__main__":
     READY_DIR.mkdir(parents=True, exist_ok=True)
-    # Bind to localhost only — cloudflared handles the public side
-    app.run(host="127.0.0.1", port=5000, debug=False)

@@ -25,7 +25,7 @@ if [ ! -f /swapfile ]; then
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
-    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/etc/fstab
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 fi
 
 # --- 2. CORE DEPENDENCIES ---
@@ -34,20 +34,22 @@ sudo apt-get update && sudo apt-get install -y \
     qbittorrent-nox \
     python3-pip \
     python3-venv \
-    python3-dotenv \
     rsync \
     curl \
     ufw
 
-# --- 3. DIRECTORY ARCHITECTURE ---
-echo "[*] Initializing project structure..."
+# --- 3. DIRECTORY ARCHITECTURE & VIRTUAL ENVIRONMENT ---
+echo "[*] Initializing project structure and virtual environment..."
 mkdir -p ~/torrent-hybrid/{config,logs,scripts,templates,ready}
 sudo mkdir -p /mnt/torrents
 sudo chown -R $USER:$USER /mnt/torrents
 
+# Setup Virtual Environment for isolation
+python3 -m venv $HOME/torrent-hybrid/venv
+$HOME/torrent-hybrid/venv/bin/pip install -r $HOME/torrent-hybrid/requirements.txt
+
 # --- 4. QBITTORRENT-NOX CONFIGURATION ---
 # Running qBit as a headless daemon. 
-# Note: Initial run is required to generate the config file.
 echo "[*] Configuring qBittorrent-nox..."
 if ! pgrep -x "qbittorrent-nox" > /dev/null; then
     nohup qbittorrent-nox > /dev/null 2>&1 &
@@ -55,7 +57,8 @@ if ! pgrep -x "qbittorrent-nox" > /dev/null; then
     pkill -x "qbittorrent-nox"
 fi
 
-# --- 5. SYSTEMD SERVICE GENERATION (Flask Backend) ---
+# --- 5. SYSTEMD SERVICE GENERATION (Flask Backend - WSGI) ---
+# We use Gunicorn as the WSGI server for production reliability.
 echo "[*] Deploying Flask Backend as a Persistent Linux Service..."
 sudo tee /etc/systemd/system/torrent-dashboard.service <<EOF
 [Unit]
@@ -65,7 +68,7 @@ After=network.target
 [Service]
 User=$USER
 WorkingDirectory=$HOME/torrent-hybrid
-ExecStart=/usr/bin/python3 app.py
+ExecStart=$HOME/torrent-hybrid/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 app:app
 Restart=always
 RestartSec=5
 StandardOutput=append:$HOME/torrent-hybrid/logs/flask.log
@@ -85,7 +88,7 @@ After=network.target
 [Service]
 User=$USER
 WorkingDirectory=$HOME/torrent-hybrid
-ExecStart=/usr/bin/python3 scripts/bot_listener.py
+ExecStart=$HOME/torrent-hybrid/venv/bin/python scripts/bot_listener.py
 Restart=always
 RestartSec=5
 StandardOutput=append:$HOME/torrent-hybrid/logs/bot_listener.log
@@ -96,10 +99,12 @@ WantedBy=multi-user.target
 EOF
 
 # --- 7. FIREWALL & NETWORK SECURITY ---
+# Zero-Trust approach: We only expose SSH. 
+# All application traffic is handled via the Cloudflare Tunnel.
 echo "[*] Hardening network with UFW..."
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
 sudo ufw allow 22/tcp      # SSH
-sudo ufw allow 6969/tcp    # qBit WebUI (Tunnel access)
-sudo ufw allow 5000/tcp    # Flask API (Tunnel access)
 sudo ufw --force enable
 
 # --- 8. FINALIZATION ---
