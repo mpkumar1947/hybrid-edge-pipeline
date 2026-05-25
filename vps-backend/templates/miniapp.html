@@ -236,11 +236,20 @@ async function approve(filename, size_gb) {
     showToast("Error: Insufficient local edge storage!");
     return;
   }
+  // Virtual allocation: Subtract space immediately to prevent UI race conditions
+  window.localFreeGb -= size_gb;
+  document.getElementById("edgeFreeText").textContent = window.localFreeGb.toFixed(2);
+
   try {
     await apiCall("/api/approve/" + encodeURIComponent(filename), "POST");
     showToast("✓ Approved — daemon will pick it up");
     loadData();
-  } catch (e) { showToast("Error: " + e.message); }
+  } catch (e) { 
+    // Revert virtual allocation on failure
+    window.localFreeGb += size_gb;
+    document.getElementById("edgeFreeText").textContent = window.localFreeGb.toFixed(2);
+    showToast("Error: " + e.message); 
+  }
 }
 
 async function skip(filename) {
