@@ -201,6 +201,22 @@ def api_progress():
     })
     if data.get("status") == "done":
         entry["completed_at"] = datetime.now().isoformat()
+        
+        # Trigger Telegram Notification
+        try:
+            cfg = load_config()
+            token = cfg["bot_token"]
+            chat_id = cfg["chat_id"]
+            if token and chat_id:
+                msg = f"✅ Edge Transfer Complete: {filename} is now on your local drive!"
+                requests.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    data={"chat_id": chat_id, "text": msg},
+                    timeout=10
+                )
+        except Exception as e:
+            log.warning(f"Failed to send completion notification: {e}")
+
     save_state(state)
     return jsonify({"ok": True})
 
