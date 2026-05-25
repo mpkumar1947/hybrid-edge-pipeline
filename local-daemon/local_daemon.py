@@ -110,7 +110,7 @@ def do_transfer(file_entry):
         "-av",
         "--progress",
         "--partial",                              # resume interrupted transfers
-        "-e", f"ssh -i {CONFIG['ssh_key']} -c aes128-gcm@openssh.com -o StrictHostKeyChecking=no -o ConnectTimeout=10",
+        "-e", f"ssh -i {CONFIG['ssh_key']} -c aes128-gcm@openssh.com -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3",
         src,
         str(dest) + "/",
     ]
