@@ -121,9 +121,19 @@ def api_status():
     return jsonify({
         "files"     : list(state["files"].values()),
         "disk"      : get_disk(),
+        "local_free_gb": state.get("local_free_gb", 0),
         "torrents"  : get_torrents(),
         "timestamp" : datetime.now().isoformat(),
     })
+
+@app.route("/api/edge-telemetry", methods=["POST"])
+def api_telemetry():
+    require_auth()
+    data = request.get_json(force=True)
+    state = load_state()
+    state["local_free_gb"] = data.get("local_free_gb", 0)
+    save_state(state)
+    return jsonify({"ok": True})
 
 @app.route("/api/approve/<path:filename>", methods=["POST"])
 def api_approve(filename):

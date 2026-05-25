@@ -159,6 +159,9 @@
     <span id="diskText">—</span>
   </div>
   <div class="bar-track"><div class="bar-fill" id="diskBar" style="width:0%"></div></div>
+  <div class="disk-row" style="margin-top:8px; margin-bottom:0; font-size:10px;">
+    <span>Edge Node Free Space: <b id="edgeFreeText">0</b> GB</span>
+  </div>
 </div>
 
 <div class="section-title">Ready to transfer</div>
@@ -182,6 +185,8 @@ if (tg) {
   tg.ready();
   tg.expand();
 }
+
+window.localFreeGb = 0;
 
 function getInitData() {
   return tg?.initData || "";
@@ -226,7 +231,11 @@ async function apiCall(path, method="GET", body=null) {
   return res.json();
 }
 
-async function approve(filename) {
+async function approve(filename, size_gb) {
+  if (size_gb > window.localFreeGb) {
+    showToast("Error: Insufficient local edge storage!");
+    return;
+  }
   try {
     await apiCall("/api/approve/" + encodeURIComponent(filename), "POST");
     showToast("✓ Approved — daemon will pick it up");
@@ -283,7 +292,7 @@ function fileCard(f) {
   if (f.status === "ready" || f.status === "skipped") {
     buttons = `
       <div class="btn-row">
-        <button class="btn btn-approve" onclick="approve('${f.name.replace(/'/g,"\\'")}')">↓ Approve transfer</button>
+        <button class="btn btn-approve" onclick="approve('${f.name.replace(/'/g,"\\'")}', ${f.size_gb || 0})">↓ Approve transfer</button>
         <button class="btn btn-skip"   onclick="skip('${f.name.replace(/'/g,"\\'")}')">Skip</button>
       </div>`;
   } else if (f.status === "done") {
@@ -320,6 +329,10 @@ async function loadData() {
     const fill = document.getElementById("diskBar");
     fill.style.width = d.used_pct + "%";
     fill.className = "bar-fill " + (d.used_pct > 90 ? "bar-crit" : d.used_pct > 70 ? "bar-warn" : "bar-ok");
+
+    // Local Edge Telemetry
+    window.localFreeGb = data.local_free_gb || 0;
+    document.getElementById("edgeFreeText").textContent = window.localFreeGb.toFixed(2);
 
     // Partition files by status
     const ready       = data.files.filter(f => f.status === "ready");

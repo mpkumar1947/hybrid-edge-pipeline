@@ -11,7 +11,7 @@ Setup:
 
 Or run as a systemd user service (see local_daemon.service)
 """
-import time, subprocess, re, threading, json, logging, sys, os
+import time, subprocess, re, threading, json, logging, sys, os, shutil
 from pathlib import Path
 import requests
 from dotenv import load_dotenv
@@ -45,6 +45,7 @@ log = logging.getLogger(__name__)
 HEADERS = {
     "X-API-Key": CONFIG["daemon_api_key"],
     "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36)"
 }
 active_transfers = set()
 transfer_lock    = threading.Lock()
@@ -159,6 +160,14 @@ def main():
 
     while True:
         try:
+            # Report edge telemetry (free disk space)
+            try:
+                usage = shutil.disk_usage(CONFIG["local_dest"])
+                free_gb = usage.free / (1024**3)
+                api_post("/api/edge-telemetry", {"local_free_gb": round(free_gb, 2)})
+            except Exception as e:
+                log.debug(f"Edge telemetry failed (ignored): {e}")
+
             data  = api_get("/api/status")
             files = data.get("files", [])
 
