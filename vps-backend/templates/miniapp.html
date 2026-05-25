@@ -339,8 +339,13 @@ async function loadData() {
     fill.style.width = d.used_pct + "%";
     fill.className = "bar-fill " + (d.used_pct > 90 ? "bar-crit" : d.used_pct > 70 ? "bar-warn" : "bar-ok");
 
-    // Local Edge Telemetry
-    window.localFreeGb = data.local_free_gb || 0;
+    // Local Edge Telemetry (State Hydration)
+    const physicalFree = data.local_free_gb || 0;
+    const pendingSize = data.files
+      .filter(f => f.status === "approved" || f.status === "transferring")
+      .reduce((sum, f) => sum + (f.size_gb || 0), 0);
+    
+    window.localFreeGb = physicalFree - pendingSize;
     document.getElementById("edgeFreeText").textContent = window.localFreeGb.toFixed(2);
 
     // Partition files by status
