@@ -177,7 +177,7 @@ def main():
             if slots > 0:
                 approved = [
                     f for f in files
-                    if f["status"] == "approved"
+                    if f["status"] in ["approved", "transferring"]
                     and f["name"] not in active_transfers
                 ]
                 for entry in approved[:slots]:
